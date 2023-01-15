@@ -6,7 +6,7 @@ from model.layers import PolarConvNd
 
 
 class Baseline(nn.Module):
-    def __init__(self, input_width, n_filter=32, polar=False, n_input_channels=1):
+    def __init__(self, input_width, n_filter=32, polar=False, n_input_channels=1, num_classes=10):
         super(Baseline, self).__init__()
         conv_op = nn.Conv2d if not polar else PolarConvNd
 
@@ -19,7 +19,7 @@ class Baseline(nn.Module):
         self.dropout1 = nn.Dropout2d(0.25)
         self.dropout2 = nn.Dropout2d(0.5)
         self.fc1 = nn.Linear(n_neurons_fc, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.fc2 = nn.Linear(128, num_classes)
 
     def forward(self, x):
         x = self.conv1(x)

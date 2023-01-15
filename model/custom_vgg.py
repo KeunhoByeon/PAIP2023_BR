@@ -66,7 +66,7 @@ class VGG(nn.Module):
 
 def make_layers(cfg, conv_type, kernel_size, batch_norm=False):
     layers = []
-    in_channels = 1
+    in_channels = 3
     for v in cfg:
         if v == 'M':
             layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
@@ -98,8 +98,7 @@ def _vgg(arch, cfg, conv_type, kernel_size, batch_norm, pretrained, progress, **
         kwargs['init_weights'] = False
     model = VGG(make_layers(cfgs[cfg], conv_type=conv_type, kernel_size=kernel_size, batch_norm=batch_norm), **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls[arch],
-                                              progress=progress)
+        state_dict = load_state_dict_from_url(model_urls[arch], progress=progress)
         model.load_state_dict(state_dict)
     return model
 

@@ -24,6 +24,9 @@ class PolarConvNd(torch.nn.modules.conv._ConvNd):
         self.base_vectors = self.base_vectors.view(self.true_base_vectors_shape[0],
                                                    np.prod(self.true_base_vectors_shape[1:]).astype(int))
 
+        if torch.cuda.is_available():
+            self.base_vectors = self.base_vectors.cuda()
+
         inferred_kernel_size = self.true_base_vectors_shape[0]
         _kernel_size = _single(inferred_kernel_size)
         _stride = _single(stride)
@@ -80,7 +83,7 @@ class PolarConvNd(torch.nn.modules.conv._ConvNd):
                         i_ = abs(i - middle)
                         j_ = abs(j - middle)
                         if int(i_ * i_ + j_ * j_) == unique_distance:
-                            base_vector[i, j] = 1./n
+                            base_vector[i, j] = 1. / n
             elif dimensions == 3:
                 for i in range(kernel_size):
                     for j in range(kernel_size):
@@ -89,7 +92,7 @@ class PolarConvNd(torch.nn.modules.conv._ConvNd):
                             j_ = abs(j - middle)
                             k_ = abs(k - middle)
                             if int(i_ * i_ + j_ * j_ + k_ * k_) == unique_distance:
-                                base_vector[i, j, k] = 1./n
+                                base_vector[i, j, k] = 1. / n
             base_vectors.append(base_vector)
         base_vectors = np.asarray(base_vectors)
         return base_vectors
@@ -130,23 +133,18 @@ class PolarConvNd(torch.nn.modules.conv._ConvNd):
         #          self.weight[..., 1].view(*self.weight.size()[:-1], 1, 1) * self.b_ + \
         #          self.weight[..., 2].view(*self.weight.size()[:-1], 1, 1) * self.c_
 
-        #print(input.size())
-        #input = torch.cat((input,input,input),1)
-        #print(input.size())
-
+        # print(input.size())
+        # input = torch.cat((input,input,input),1)
+        # print(input.size())
 
         weight_size = self.weight.shape
-        weight = torch.mm(self.weight.view(np.prod(weight_size[:-1]), weight_size[-1]), self.base_vectors) \
-            .view(*weight_size[:-1], *self.true_base_vectors_shape[1:])
-        return self.reconstructed_conv_op(input, weight, self.bias, self.reconstructed_stride,
-                                          self.reconstructed_padding, self.reconstructed_dilation, self.groups)
+        weight = torch.mm(self.weight.view(np.prod(weight_size[:-1]), weight_size[-1]), self.base_vectors).view(*weight_size[:-1], *self.true_base_vectors_shape[1:])
+        return self.reconstructed_conv_op(input, weight, self.bias, self.reconstructed_stride, self.reconstructed_padding, self.reconstructed_dilation, self.groups)
 
-
-    #torch.repeat_interleave(input, 1, dim=1)
+    # torch.repeat_interleave(input, 1, dim=1)
     # def cuda(self, device=None):
     #     self.base_vectors = self.base_vectors.cuda(device)
     #     super(PolarConvNd, self).cuda(device)
-
 
     def __repr__(self):
         return ('PolarConv%dd' % self.init_dimensions) + '(' + self.extra_repr() + ')'
@@ -155,9 +153,7 @@ class PolarConvNd(torch.nn.modules.conv._ConvNd):
 if __name__ == '__main__':
     kernel_size = int(sys.argv[-1])
     dimensions = int(sys.argv[-2])
-    a = PolarConvNd(in_channels=2, out_channels=4,
-                    kernel_size=kernel_size,
-                    dimensions=dimensions).to('cuda')
+    a = PolarConvNd(in_channels=2, out_channels=4, kernel_size=kernel_size, dimensions=dimensions).to('cuda')
     # print(a.base_vectors)
     to_torch = lambda array: torch.from_numpy(array).to('cuda').float()
     z = np.zeros((1, 2, kernel_size, kernel_size))
