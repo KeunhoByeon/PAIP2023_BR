@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from dataloader import PAIP2023Dataset
 from logger import Logger
-from model import get_model
+from models import get_model
 
 
 def val(epoch, model, criterion, val_loader, logger=None):
@@ -120,10 +120,10 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Training')
     # Model Arguments
-    parser.add_argument('--model', type=str, default='vgg11', metavar='TYPE', help="choices: 'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn', 'vgg19_bn', 'vgg19'")
+    parser.add_argument('--models', type=str, default='nestedunet', metavar='TYPE')
     parser.add_argument('--filter-width', type=int, default=3, metavar='N', help='width of conv filters')
     parser.add_argument('--num_classes', default=3, type=int, help='number of classes')
-    parser.add_argument('--pretrained', default=True, action='store_true', help='Load pretrained model.')
+    parser.add_argument('--pretrained', default=True, action='store_true', help='Load pretrained models.')
     # Data Arguments
     parser.add_argument('--data', default='./data', help='path to dataset')
     parser.add_argument('--workers', default=8, type=int, help='number of data loading workers')

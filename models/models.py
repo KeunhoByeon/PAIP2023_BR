@@ -1,7 +1,8 @@
 import torch
 
-from model import custom_resnet as resnet, custom_vgg as vgg
-from model.custom_baseline import Baseline
+from .unet_nested import NestedUNet
+from models import custom_resnet as resnet, custom_vgg as vgg
+from models.custom_baseline import Baseline
 
 
 def get_model(args):
@@ -9,11 +10,13 @@ def get_model(args):
     polar = True
     filter_width = args.filter_width
 
-    if 'vgg' in args.model:
+    if 'nestedunet' in args.model.lower():
+        model = NestedUNet(num_classes=args.num_classes, input_channels=3)
+    elif 'vgg' in args.model.lower():
         model = getattr(vgg, args.model.lower())(conv_type='classical' if not polar else 'polar', kernel_size=filter_width, num_classes=args.num_classes)
-    elif 'resnet' in args.model:
+    elif 'resnet' in args.model.lower():
         model = getattr(resnet, args.model.lower())(conv_type='classical' if not polar else 'polar', kernel_size=filter_width, num_classes=args.num_classes)
-    elif 'baseline' in args.model:
+    elif 'baseline' in args.model.lower():
         polar = False
         if 'small' in args.model:
             n_filters = 20
@@ -22,8 +25,8 @@ def get_model(args):
         raise AssertionError
 
     # if torch.cuda.device_count() > 1:
-    #     model = torch.nn.DataParallel(model).cuda()
+    #     models = torch.nn.DataParallel(models).cuda()
     # else:
-    #     model = model.to(device)
+    #     models = models.to(device)
 
     return model.float()

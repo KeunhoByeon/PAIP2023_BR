@@ -3,7 +3,7 @@ __author__ = 'marvinler'
 import torch.nn as nn
 
 from torch.hub import load_state_dict_from_url
-from model.layers import PolarConvNd
+from models.layers import PolarConvNd
 
 
 __all__ = [
@@ -104,80 +104,80 @@ def _vgg(arch, cfg, conv_type, kernel_size, batch_norm, pretrained, progress, **
 
 
 def vgg11(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 11-layer model (configuration "A")
+    """VGG 11-layer models (configuration "A")
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg11', 'A', conv_type, kernel_size, False, pretrained, progress, **kwargs)
 
 
 def vgg11_bn(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 11-layer model (configuration "A") with batch normalization
+    """VGG 11-layer models (configuration "A") with batch normalization
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg11_bn', 'A', conv_type, kernel_size, True, pretrained, progress, **kwargs)
 
 
 def vgg13(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 13-layer model (configuration "B")
+    """VGG 13-layer models (configuration "B")
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg13', 'B', conv_type, kernel_size, False, pretrained, progress, **kwargs)
 
 
 def vgg13_bn(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 13-layer model (configuration "B") with batch normalization
+    """VGG 13-layer models (configuration "B") with batch normalization
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg13_bn', 'B', conv_type, kernel_size, True, pretrained, progress, **kwargs)
 
 
 def vgg16(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 16-layer model (configuration "D")
+    """VGG 16-layer models (configuration "D")
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg16', 'D', conv_type, kernel_size, False, pretrained, progress, **kwargs)
 
 
 def vgg16_bn(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 16-layer model (configuration "D") with batch normalization
+    """VGG 16-layer models (configuration "D") with batch normalization
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg16_bn', 'D', conv_type, kernel_size, True, pretrained, progress, **kwargs)
 
 
 def vgg19(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 19-layer model (configuration "E")
+    """VGG 19-layer models (configuration "E")
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg19', 'E', conv_type, kernel_size, False, pretrained, progress, **kwargs)
 
 
 def vgg19_bn(conv_type, kernel_size, pretrained=False, progress=True, **kwargs):
-    """VGG 19-layer model (configuration 'E') with batch normalization
+    """VGG 19-layer models (configuration 'E') with batch normalization
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        pretrained (bool): If True, returns a models pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _vgg('vgg19_bn', 'E', conv_type, kernel_size, True, pretrained, progress, **kwargs)

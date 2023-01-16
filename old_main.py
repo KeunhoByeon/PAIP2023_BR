@@ -13,8 +13,8 @@ import get_data as get_data
 from pcam_dataset import PatchCamelyon
 from torch.utils.data import DataLoader
 from dataloader import PAIP2023Dataset
-from model.custom_baseline import Baseline
-from model import custom_resnet as resnet, custom_vgg as vgg
+from models.custom_baseline import Baseline
+from models import custom_resnet as resnet, custom_vgg as vgg
 
 from time import gmtime, strftime
 
@@ -27,11 +27,11 @@ def process_args():
     parser.add_argument('--batch-size', type=int, default=16, metavar='N', help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1, metavar='N', help='input batch size for testing (default: 1000)')
 
-    parser.add_argument('--model-type', type=str, default='vgg11', metavar='TYPE', help="choices: 'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn', 'vgg19_bn', 'vgg19'")
+    parser.add_argument('--models-type', type=str, default='vgg11', metavar='TYPE', help="choices: 'VGG', 'vgg11', 'vgg11_bn', 'vgg13', 'vgg13_bn', 'vgg16', 'vgg16_bn', 'vgg19_bn', 'vgg19'")
     parser.add_argument('--filter-width', type=int, default=3, metavar='N', help='width of conv filters')
     parser.add_argument('--baseline', action='store_true', default=False, help='')
     parser.add_argument('--baseline-small', action='store_true', default=False, help='baseline but shrunk 3 times')
-    parser.add_argument('--save-model', action='store_true', default=False, help='For Saving the current Model')
+    parser.add_argument('--save-models', action='store_true', default=False, help='For Saving the current Model')
 
     parser.add_argument('--epochs', type=int, default=14, metavar='N', help='number of epochs to train (default: 14)')
     parser.add_argument('--lr', type=float, default=1.0, metavar='LR', help='learning rate (default: 1.0)')
@@ -211,7 +211,7 @@ def main(args, reg=None):
     #with open(os.path.join(run_filepath, 'config'), 'w') as f:
         #f.write(str(args))
 
-    # optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.reg[0] if reg is None else reg)
+    # optimizer = optim.SGD(models.parameters(), lr=args.lr, weight_decay=args.reg[0] if reg is None else reg)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.reg[0] if reg is None else reg)
 
     best_loss_sofar = 100.
