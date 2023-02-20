@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-base_dir = './data/train/mask'
-save_dir = './data/train/mask_contour'
+base_dir = '../data/train/mask'
+save_dir = '../data/train/mask_contour'
 
 if __name__ == '__main__':
     mask_paths = []
