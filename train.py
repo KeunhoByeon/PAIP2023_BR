@@ -1,77 +1,102 @@
 import argparse
 import os
 import random
-
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
+import warnings
 
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
 
 from dataloader import PAIP2023Dataset
 from logger import Logger
-from models import get_model
+from model import get_model
+from utils import recover_data
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
-def val(epoch, model, criterion, val_loader, logger=None):
-    model.eval()
+def debug_image(inputs, preds_mask, preds_mask_contour, save_path):
+    debug_images = []
+    for img, pred_mask, pred_mask_contour in zip(inputs, preds_mask, preds_mask_contour):
+        img, pred_mask, pred_mask_contour = recover_data(img, pred_mask, pred_mask_contour)
 
-    with torch.no_grad():
-        for i, (_, inputs, targets) in tqdm(enumerate(val_loader), leave=False, desc='Validation {}'.format(epoch), total=len(val_loader)):
+        pred_mask = cv2.cvtColor((pred_mask * 100).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        pred_mask_contour = cv2.cvtColor(pred_mask_contour * 255, cv2.COLOR_GRAY2BGR)
+        debug_images.append(np.hstack([img, pred_mask, pred_mask_contour]))
+    cv2.imwrite(save_path, np.vstack(debug_images))
+
+
+def val(args, epoch, model, criterion, val_loader, logger=None):
+    model.eval()  # 모델을 평가 모드로
+
+    os.makedirs(os.path.join(args.result, 'debug', str(epoch)), exist_ok=True)
+    with torch.no_grad():  # Disable gradient calculation
+        for i, (img_paths, inputs, masks, masks_contour) in tqdm(enumerate(val_loader), leave=False, desc='Validation {}'.format(epoch), total=len(val_loader)):
             if torch.cuda.is_available():
                 inputs = inputs.cuda()
-                targets = targets.cuda()
+                masks = masks.cuda()
+                masks_contour = masks_contour.cuda()
 
-            output = model(inputs)
-            loss = criterion(output, targets)
-            preds = torch.argmax(output, dim=1)
-            acc = torch.sum(preds == targets).item() / (inputs.shape[0] * inputs.shape[1] * inputs.shape[2]) * 100.
+            output_mask, output_mask_contour = model(inputs)
+            loss = criterion[0](output_mask, masks) + criterion[1](output_mask_contour, masks_contour)
 
-            logger.add_history('total', {'loss': loss.item(), 'accuracy': acc})
+            preds_mask = torch.argmax(output_mask, dim=1)
+            preds_mask_contour = torch.argmax(output_mask_contour, dim=1)
 
-            del output, loss, acc
+            acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+            acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
+            # acc_mask = torch.sum(preds_mask == torch.argmax(masks, dim=1)).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+            # acc_mask_contour = torch.sum(preds_mask_contour == torch.argmax(masks_contour, dim=1)).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
 
-        if logger is not None:
-            logger('*Validation {}'.format(epoch), history_key='total', time=time.strftime('%Y%m%d%H%M%S'))
+            logger.add_history('total', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
+
+            save_path = os.path.join(args.result, 'debug', str(epoch), '{}.png'.format(i))
+            debug_image(inputs, preds_mask, preds_mask_contour, save_path)
+
+    if logger is not None:
+        logger('*Validation {}'.format(epoch), history_key='total', time=time.strftime('%Y.%m.%d.%H:%M:%S'))
 
 
-def train(epoch, model, criterion, optimizer, train_loader, logger=None):
-    model.train()
+def train(args, epoch, model, criterion, optimizer, train_loader, logger=None):
+    model.train()  # 모델을 학습 모드로
 
     num_progress, next_print = 0, args.print_freq
-    for i, (_, inputs, targets) in enumerate(train_loader):
+    for i, (img_paths, inputs, masks, masks_contour) in enumerate(train_loader):
         if torch.cuda.is_available():
             inputs = inputs.cuda()
-            targets = targets.cuda()
-        print(targets.shape)
+            masks = masks.cuda()
+            masks_contour = masks_contour.cuda()
 
         optimizer.zero_grad()
-        output = model(inputs)
-        loss = criterion(output, targets)
+        output_mask, output_mask_contour = model(inputs)
+        loss = criterion[0](output_mask, masks) + criterion[1](output_mask_contour, masks_contour)
         loss.backward()
         optimizer.step()
 
-        preds = torch.argmax(output, dim=1)
-        acc = torch.sum(preds == targets).item() / (inputs.shape[0] * inputs.shape[1] * inputs.shape[2]) * 100.
+        preds_mask = torch.argmax(output_mask, dim=1)
+        preds_mask_contour = torch.argmax(output_mask_contour, dim=1)
 
-        logger.add_history('total', {'loss': loss.item(), 'accuracy': acc})
-        logger.add_history('batch', {'loss': loss.item(), 'accuracy': acc})
+        acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+        acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
+
+        logger.add_history('total', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
+        logger.add_history('batch', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
 
         num_progress += len(inputs)
         if num_progress >= next_print:
             if logger is not None:
-                logger(history_key='batch', epoch=epoch, batch=num_progress, lr=round(optimizer.param_groups[0]['lr'], 12), time=time.strftime('%Y%m%d%H%M%S'))
+                logger(history_key='batch', epoch=epoch, batch=num_progress, time=time.strftime('%Y.%m.%d.%H:%M:%S'))
             next_print += args.print_freq
 
-        del output, loss, acc
-
     if logger is not None:
-        logger(history_key='total', epoch=epoch)
+        logger(history_key='total', epoch=epoch, lr=round(optimizer.param_groups[0]['lr'], 12))
 
 
 def run(args):
-    # Seed
+    # Random Seed
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
@@ -79,19 +104,19 @@ def run(args):
 
     # Model
     model = get_model(args)
-    if args.resume is not None:
+    if args.resume is not None:  # resume
         model.load_state_dict(torch.load(args.resume))
+
+    criterion = (nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 60 / 100, 80 / 100])), nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 90 / 100])))
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
     # CUDA
     if torch.cuda.is_available():
-        model = model.cuda()
-
-    # Criterion
-    criterion = nn.CrossEntropyLoss()
-
-    # Optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = ReduceLROnPlateau(optimizer, 'min', args.gamma, args.lr_timestep, threshold=1**(-3))
+        if torch.cuda.device_count() > 1:
+            model = torch.nn.DataParallel(model).cuda()
+        else:
+            model = model.cuda()
 
     # Dataset
     train_dataset = PAIP2023Dataset(os.path.join(args.data, 'train'), cellularity_mpp_path=os.path.join(args.data, 'train', 'cellularity_mpp.csv'), input_size=args.input_size, is_train=True)
@@ -101,50 +126,51 @@ def run(args):
 
     # Logger
     logger = Logger(os.path.join(args.result, 'log.txt'), epochs=args.epochs, dataset_size=len(train_loader.dataset), float_round=5)
-    logger.set_sort(['loss', 'accuracy', 'lr', 'time'])
+    logger.set_sort(['loss', 'acc_mask', 'acc_mask_contour', 'lr', 'time'])
     logger(str(args))
 
+    # Run
     save_dir = os.path.join(args.result, 'checkpoints')
-    os.makedirs(save_dir, exist_ok=True)
-
-    # Run training
-    print('Training...')
     for epoch in range(args.start_epoch, args.epochs):
-        train(epoch, model, criterion, optimizer, train_loader, logger=logger)
-        if epoch % args.val_freq == 0:
-            val(epoch, model, criterion, val_loader, logger=logger)
-            torch.save(model.state_dict(), os.path.join(save_dir, '{}.pth'.format(epoch)))
+        # Train
+        train(args, epoch, model, criterion, optimizer, train_loader, logger=logger)
+
+        # Validation
+        if epoch % args.val_freq == 0 or epoch == args.epochs - 1:
+            val(args, epoch, model, criterion, val_loader, logger=logger)
+            os.makedirs(save_dir, exist_ok=True)
+
+            model_state_dict = model.module.state_dict() if torch.cuda.device_count() > 1 else model.state_dict()
+            torch.save(model_state_dict, os.path.join(save_dir, '{}.pth'.format(epoch)))
+
+        # Scheduler Step
         scheduler.step()
 
 
 if __name__ == '__main__':
+    # Arguments 설정
     parser = argparse.ArgumentParser(description='PyTorch Training')
     # Model Arguments
-    parser.add_argument('--models', type=str, default='nestedunet', metavar='TYPE')
-    parser.add_argument('--filter-width', type=int, default=3, metavar='N', help='width of conv filters')
+    parser.add_argument('--model', default='dsf_unet')
     parser.add_argument('--num_classes', default=3, type=int, help='number of classes')
-    parser.add_argument('--pretrained', default=True, action='store_true', help='Load pretrained models.')
+    parser.add_argument('--filter-width', type=int, default=3, metavar='N', help='width of conv filters')
+    parser.add_argument('--pretrained', default=True, action='store_true', help='Load pretrained model.')
+    parser.add_argument('--resume', default=None, type=str, help='path to latest checkpoint')
     # Data Arguments
     parser.add_argument('--data', default='./data', help='path to dataset')
-    parser.add_argument('--workers', default=8, type=int, help='number of data loading workers')
+    parser.add_argument('--workers', default=4, type=int, help='number of data loading workers')
     parser.add_argument('--input_size', default=512, type=int, help='image input size')
-    parser.add_argument('--input_channels', default=3, type=int, help='image input size')
     # Training Arguments
     parser.add_argument('--start_epoch', default=0, type=int, help='manual epoch number')
-    parser.add_argument('--epochs', default=300, type=int, help='number of total epochs to run')
-    parser.add_argument('--batch_size', default=20, type=int, help='mini-batch size')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR', help='learning rate (default: 1.0)')
+    parser.add_argument('--epochs', default=200, type=int, help='number of total epochs to run')
+    parser.add_argument('--batch_size', default=4, type=int, help='mini-batch size')
+    parser.add_argument('--lr', default=0.0001, type=float, help='initial learning rate', dest='lr')
     parser.add_argument('--seed', default=103, type=int, help='seed for initializing training.')
     # Validation and Debugging Arguments
-    parser.add_argument('--val_freq', default=1, type=int, help='validation freq')
-    parser.add_argument('--print_freq', default=1000, type=int, help='print and save frequency')
-    parser.add_argument('--result', default='results', help='path to results')
-    parser.add_argument('--resume', default=None, type=str, help='path to latest checkpoint')
+    parser.add_argument('--val_freq', default=1, type=int, help='validation frequency')
+    parser.add_argument('--print_freq', default=10, type=int, help='print frequency')
+    parser.add_argument('--result', default='results', type=str, help='path to results')
     parser.add_argument('--tag', default=None, type=str)
-    parser.add_argument('--debug', default=False, action='store_true', help='debug validation')
-    # ---
-    parser.add_argument('--lr-timestep', type=int, default=5, metavar='M', help='Number of epochs before triggering learning rate decrease on plateau')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M', help='Learning rate step gamma (default: 0.7)')
     args = parser.parse_args()
 
     # Paths setting
