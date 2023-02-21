@@ -86,7 +86,7 @@ class DSF_Unet(nn.Module):
         self.conv_original_size1 = convrelu(64, 64, 3, 1)
 
         self.decoder_seg = PolarDecoder(num_classes)
-        self.decoder_instance = PolarDecoder(2)
+        self.decoder_instance = PolarDecoder(1)
 
     def forward(self, input):
         x_original = self.conv_original_size0(input)

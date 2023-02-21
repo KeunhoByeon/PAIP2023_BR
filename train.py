@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from dataloader import PAIP2023Dataset
 from logger import Logger
-from model import get_model
+from model import get_model, DiceLoss
 from utils import recover_data
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -23,14 +23,16 @@ def debug_image(inputs, preds_mask, preds_mask_contour, save_path):
     for img, pred_mask, pred_mask_contour in zip(inputs, preds_mask, preds_mask_contour):
         img, pred_mask, pred_mask_contour = recover_data(img, pred_mask, pred_mask_contour)
 
-        pred_mask = cv2.cvtColor((pred_mask * 100).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-        pred_mask_contour = cv2.cvtColor(pred_mask_contour * 255, cv2.COLOR_GRAY2BGR)
+        pred_mask = cv2.cvtColor(pred_mask.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        pred_mask_contour = cv2.cvtColor(pred_mask_contour, cv2.COLOR_GRAY2BGR)
         debug_images.append(np.hstack([img, pred_mask, pred_mask_contour]))
     cv2.imwrite(save_path, np.vstack(debug_images))
 
 
 def val(args, epoch, model, criterion, val_loader, logger=None):
     model.eval()  # 모델을 평가 모드로
+    criterion[0].eval()
+    criterion[1].eval()
 
     os.makedirs(os.path.join(args.result, 'debug', str(epoch)), exist_ok=True)
     with torch.no_grad():  # Disable gradient calculation
@@ -41,15 +43,16 @@ def val(args, epoch, model, criterion, val_loader, logger=None):
                 masks_contour = masks_contour.cuda()
 
             output_mask, output_mask_contour = model(inputs)
+            output_mask_contour = output_mask_contour[:, 0, :, :]
             loss = criterion[0](output_mask, masks) + criterion[1](output_mask_contour, masks_contour)
 
             preds_mask = torch.argmax(output_mask, dim=1)
-            preds_mask_contour = torch.argmax(output_mask_contour, dim=1)
+            preds_mask_contour = torch.where(output_mask_contour > 0.5, 1, 0)
 
-            acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+            # acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+            # acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
+            acc_mask = torch.sum(preds_mask == torch.argmax(masks, dim=1)).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
             acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
-            # acc_mask = torch.sum(preds_mask == torch.argmax(masks, dim=1)).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
-            # acc_mask_contour = torch.sum(preds_mask_contour == torch.argmax(masks_contour, dim=1)).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
 
             logger.add_history('total', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
 
@@ -62,7 +65,10 @@ def val(args, epoch, model, criterion, val_loader, logger=None):
 
 def train(args, epoch, model, criterion, optimizer, train_loader, logger=None):
     model.train()  # 모델을 학습 모드로
+    criterion[0].train()
+    criterion[1].train()
 
+    os.makedirs(os.path.join(args.result, 'debug_train', str(epoch)), exist_ok=True)
     num_progress, next_print = 0, args.print_freq
     for i, (img_paths, inputs, masks, masks_contour) in enumerate(train_loader):
         if torch.cuda.is_available():
@@ -72,18 +78,24 @@ def train(args, epoch, model, criterion, optimizer, train_loader, logger=None):
 
         optimizer.zero_grad()
         output_mask, output_mask_contour = model(inputs)
+        output_mask_contour = output_mask_contour[:, 0, :, :]
         loss = criterion[0](output_mask, masks) + criterion[1](output_mask_contour, masks_contour)
         loss.backward()
         optimizer.step()
 
         preds_mask = torch.argmax(output_mask, dim=1)
-        preds_mask_contour = torch.argmax(output_mask_contour, dim=1)
+        preds_mask_contour = torch.where(output_mask_contour > 0.5, 1, 0)
 
-        acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+        # acc_mask = torch.sum(preds_mask == masks).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
+        # acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
+        acc_mask = torch.sum(preds_mask == torch.argmax(masks, dim=1)).item() / (masks.shape[0] * masks.shape[-2] * masks.shape[-1]) * 100.
         acc_mask_contour = torch.sum(preds_mask_contour == masks_contour).item() / (masks_contour.shape[0] * masks_contour.shape[-2] * masks_contour.shape[-1]) * 100.
 
         logger.add_history('total', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
         logger.add_history('batch', {'loss': loss.item(), 'acc_mask': acc_mask, 'acc_mask_contour': acc_mask_contour})
+
+        save_path = os.path.join(args.result, 'debug_train', str(epoch), '{}.png'.format(i))
+        debug_image(inputs, preds_mask, preds_mask_contour, save_path)
 
         num_progress += len(inputs)
         if num_progress >= next_print:
@@ -107,7 +119,8 @@ def run(args):
     if args.resume is not None:  # resume
         model.load_state_dict(torch.load(args.resume))
 
-    criterion = (nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 60 / 100, 80 / 100])), nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 90 / 100])))
+    # criterion = (nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 60 / 100, 80 / 100])), nn.CrossEntropyLoss(weight=torch.FloatTensor([10 / 100, 90 / 100])))
+    criterion = (DiceLoss(multiclass=True), DiceLoss(multiclass=False))
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 

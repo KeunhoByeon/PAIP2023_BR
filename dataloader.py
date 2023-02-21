@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from tools.utils import resize_and_pad_image
+from utils import resize_and_pad_image
 
 
 def get_samples(data_dir, cellularity_mpp_path=None, no_mask=False):
@@ -131,8 +131,8 @@ class PAIP2023Dataset(Dataset):
         img = img.transpose(2, 0, 1)
         img = torch.from_numpy(img)
 
-        # mask = np.eye(3)[mask]
-        # mask = mask.transpose(2, 0, 1)
+        mask = np.eye(3)[mask]
+        mask = mask.transpose(2, 0, 1)
         mask = torch.from_numpy(mask.copy()).type(torch.LongTensor)
         # mask_contour = np.eye(2)[mask_contour]
         # mask_contour = mask_contour.transpose(2, 0, 1)

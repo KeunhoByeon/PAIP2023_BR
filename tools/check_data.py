@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 
-from tools.utils import os_walk
+from data.utils import os_walk
 
 
 def get_data_dict(data_dir, cellularity_mpp_path):
